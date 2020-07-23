@@ -11,6 +11,12 @@ type Channel = [SongAtom]
 type Song    = (Int, [Channel])
 
 
+instance Show SongAtom where
+  show (Silence t)      = intercalate " " ["-", show t]
+  show (Noise (o, t))   = intercalate " " ["~", show o, show t]
+  show (Note (f, o, t)) = intercalate " " [f,   show o, show t]
+
+
 c0 :: Float
 c0 = 16.351597831287418
 
@@ -71,8 +77,7 @@ parseSong' :: [String] -> Song
 parseSong' [] = (0, [])
 parseSong' (l:ls) =
   if "TEMPO" `isPrefixOf` l
-  then
-    (read $ drop 6 l, parseSongChannels ls)
+  then (read $ drop 6 l, parseSongChannels ls)
   else parseSong' ls
 
 
@@ -83,25 +88,19 @@ parseSongChannels (l:ls) =
   then
     let (rawChannel, etc) = break ("ENDCH" `isPrefixOf`) ls
     in (parseChannel rawChannel):(parseSongChannels $ drop 1 etc)
-    else []
+  else []
 
 
 parseSong :: [String] -> Song
 parseSong = parseSong' . preProcessSong
 
 
-unparseSongAtom :: SongAtom -> String
-unparseSongAtom (Silence t) = "- " ++ show t
-unparseSongAtom (Noise (o, t)) = "~ " ++ show o ++ " " ++ show t
-unparseSongAtom (Note (f, o, t)) = f ++ " " ++ show o ++ " " ++ show t
-  
-
 unparseChannel :: Channel -> [String]
-unparseChannel c = ["BEGINCH"] ++ (map unparseSongAtom c) ++ ["ENDCH"]
+unparseChannel c = ["BEGINCH"] ++ (map show c) ++ ["ENDCH"]
 
 
 unparseSong :: Song -> [String]
 unparseSong (tempo, channels) =
-  [ "TEMPO " ++ show tempo
+  [ "TEMPO "    ++ show tempo
   , "CHANNELS " ++ (show $ length channels)] ++
   [line | chLines <- map unparseChannel channels, line <- chLines]
