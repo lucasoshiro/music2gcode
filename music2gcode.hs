@@ -1,28 +1,63 @@
 import System.Environment
-import Data.List
+import Data.Maybe
 
 import Song
 import GCode
 
-myPrinter = Printer
-  { rangeX     = (10, 150)
-  , rangeY     = (10, 150)
-  , rangeZ     = (10, 100)
-  , stepsPermm = (160 / 4, 160 / 4, 5120 / 4)
-  }
+data Options = Options { printer    :: Maybe Printer
+                       , inputPath  :: Maybe String
+                       , outputPath :: Maybe String
+                       }
+
+
+defaultOpts :: Options
+defaultOpts = Options { printer    = Nothing
+                      , inputPath  = Nothing
+                      , outputPath = Nothing
+                      }
+
+
+parseOptions :: [String] -> Options
+parseOptions args = snd $ parseOptions' args defaultOpts
+
+
+parseOptions' :: [String] -> Options -> ([String], Options)
+parseOptions' [] opt = ([], opt)
+parseOptions' args@(arg:_) opt = parseOptions' rest newOpt
+  where (rest, newOpt) = case arg of
+          "-p" -> parsePrinter args opt
+          "-o" -> (drop 2 args, opt { outputPath = Just $ args !! 1 })
+          _    -> (drop 1 args, opt { inputPath  = Just $ args !! 0 })
+
+
+parsePrinter :: [String] -> Options -> ([String], Options)
+parsePrinter [] opt = ([], opt)
+parsePrinter (_:args) opt = (rest, newOpt)
+  where (argsP, rest) = splitAt 9 args
+        ints :: [Float]
+        ints = map read argsP
+        newOpt = opt { printer = Just parsedPrinter }
+        parsedPrinter = Printer
+          { rangeX     = (ints !! 0, ints !! 1)
+          , rangeY     = (ints !! 2, ints !! 3)
+          , rangeZ     = (ints !! 4, ints !! 5)
+          , stepsPermm = (ints !! 6, ints !! 7, ints !! 8)
+          }
+
 
 main :: IO ()
 main = do
   args <- getArgs
-  let path = args !! 0
-  content <- readFile path
+  let (Options mPr mIn mOut) = parseOptions args
+
+  let (printer', input, output) = fromJust $
+        do printer'' <- mPr
+           input'    <- mIn
+           output'   <- mOut
+           return (printer'', input', output')
+                
+  content <- readFile input
   let ls = lines content
   let song = parseSong ls
-  let (bpm, channels) = song
-  let func = fromRelativeMovements myPrinter $ fromFreqEvents myPrinter $ fromSongEvents $ songEventsFromSong song
-
-  putStrLn $ intercalate "\n" $ map show func
-
-  -- let wave = pulsesFromSong song
-  -- save wave "output.bin"
-  
+  let func = fromRelativeMovements printer' $ fromFreqEvents printer' $ fromSongEvents $ songEventsFromSong song
+  writeFile output $ concat $ map ((++"\n") . show) func
