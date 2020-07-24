@@ -16,7 +16,8 @@ type PrinterEvent = (MiliSec, MiliSec, Int, Int, Int) -- Begin, End, Steps
 data Printer = Printer { rangeX     :: (Float, Float)
                        , rangeY     :: (Float, Float)
                        , rangeZ     :: (Float, Float)
-                       , stepsPermm :: (Float, Float, Float)}
+                       , stepsPermm :: (Float, Float, Float)
+                       }
 
 data Axis = X | Y | Z
 data GCodeAtom = LinearMove {x :: Float, y :: Float, z :: Float, f :: Float}
@@ -66,38 +67,52 @@ songEventsFromSong (tempo, channels) = sortBy timeorder $ concat songEvChannels
 fromSongEvents :: [SongEvent] -> [FreqEvent]
 fromSongEvents events = foldl update [(0, 0, 0, 0)] events
   where update l e = l ++ [(t, x, y, z)]
-          where (old_t, old_x, old_y, old_z) = last l
+          where (_, old_x, old_y, old_z) = last l
                 (t, _, ch, freq) = e
                 x = if ch == 0 then freq else old_x
                 y = if ch == 1 then freq else old_y
                 z = if ch == 2 then freq else old_z
-          
+
 
 fromFreqEvents :: Printer -> [FreqEvent] -> [RelativeMovement]
-fromFreqEvents printer events = zipWith (\(x, y, z) f -> (x, y, z, f)) deltaSs speeds
+fromFreqEvents printer events = zipWith joinF deltaSs speeds
   where deltaTs = zipWith getDeltaT events $ drop 1 events
-        getDeltaT (t0, _, _, _) (t1, _, _, _) = fromIntegral (t1 - t0) / 1000
+          where getDeltaT (t0, _, _, _) (t1, _, _, _) = fromIntegral (t1 - t0) / 1000
+
         steps = zipWith getFreqs deltaTs $ events
-        getFreqs dt (t, x, y, z) = (floor $ x * dt, floor $ y * dt, floor $ z * dt)
-        deltaSs = map (\(x, y, z) -> (fromSteps' X x, fromSteps' Y y, fromSteps' Z z)) steps
-        fromSteps' = fromSteps printer
-        speed (ds_x, ds_y, ds_z) dt = sqrt (ds_x ** 2 + ds_y ** 2 + ds_z ** 2) / dt * 60
+          where getFreqs dt (_, x, y, z) = (getFreq x, getFreq y, getFreq z)
+                  where getFreq v = floor $ v * dt
+
+        deltaSs = map fromSteps' steps
+          where fromSteps' (x, y, z) = (fromSteps'' X x,
+                                        fromSteps'' Y y,
+                                        fromSteps'' Z z)
+                fromSteps'' = fromSteps printer
+
         speeds = zipWith speed deltaSs deltaTs
+          where speed (ds_x, ds_y, ds_z) dt = sqrt (ds_x ** 2 +
+                                                    ds_y ** 2 +
+                                                    ds_z ** 2) / dt * 60
+
+        joinF (x, y, z) f = (x, y, z, f)
 
 
 fromRelativeMovements :: Printer -> [RelativeMovement] -> GCode
 fromRelativeMovements printer movements = clean
-  where toAbsolute l (dx, dy, dz, s) = l ++ [(x, y, z, s)]
+  where Printer (x0, _) (y0, _) (z0, _) _ = printer
+
+        absolutes = foldl toAbsolute [(x0, y0, z0, 0)] movements
+        toAbsolute l (dx, dy, dz, s) = l ++ [(x, y, z, s)]
           where (old_x, old_y, old_z, _) = last l
                 x = if old_x - dx > x0 then old_x - dx else old_x + dx
                 y = if old_y - dy > y0 then old_y - dy else old_y + dy
                 z = if old_z - dz > z0 then old_z - dz else old_z + dz
-        absolutes = foldl toAbsolute [(x0, y0, z0, 0)] movements
-        Printer (x0, _) (y0, _) (z0, _) _ = printer
-        fromMovement (x, y, z, f) = LinearMove x y z f
+
         gcode = map fromMovement absolutes
+          where fromMovement (x, y, z, f) = LinearMove x y z f
+
         clean = filter (\(LinearMove _ _ _ f) -> not $ isNaN f) gcode -- feio
-                
+
 
 gCodeFromSong :: Printer -> Song -> GCode
 gCodeFromSong printer song = fromRelativeMovements printer
@@ -115,8 +130,6 @@ fromSteps (Printer _ _ _ (xmm, ymm, zmm)) = fromSteps'
 
 fromMM :: Printer -> Axis -> MM -> Int
 fromMM (Printer _ _ _ (xmm, ymm, zmm)) = fromMM'
-  where fromMM' :: Axis -> MM -> Int
-        fromMM' X stp = floor $ stp * xmm
+  where fromMM' X stp = floor $ stp * xmm
         fromMM' Y stp = floor $ stp * ymm
         fromMM' Z stp = floor $ stp * zmm
-
