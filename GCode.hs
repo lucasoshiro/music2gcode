@@ -2,7 +2,8 @@ module GCode where
 import Song
 import Data.List
 
-
+type MM      = Float
+type MM_s    = Float
 type MiliSec = Int
 
 type SongAction   = (MiliSec, Hz)                     -- Duration, Frequency
@@ -19,15 +20,9 @@ data Printer = Printer { rangeX     :: (Float, Float)
 
 data Axis = X | Y | Z
 data GCodeAtom = LinearMove {x :: Float, y :: Float, z :: Float, f :: Float}
-type GCode = [GCodeAtom]
 
-data Dir = Backward | Forward
-type Dir3D = (Dir, Dir, Dir)
-type MM = Float
-type MM_s = Float
-
-type AxisEvent = (Dir, MM, MM_s)      -- Direction, End position, Speed
 type RelativeMovement = (MM, MM, MM, MM_s)
+type GCode = [GCodeAtom]
 
 
 instance Show GCodeAtom where
@@ -39,20 +34,6 @@ instance Show Axis where
   show X = "X"
   show Y = "Y"
   show Z = "Z"
-
-
-instance Show Dir where
-  show Backward = "<-"
-  show Forward  = "<-"
-
-
-fromDir :: Dir -> Int
-fromDir Backward = -1
-fromDir Forward  = 1
-
-
-fromDir3D :: Dir3D -> (Int, Int, Int)
-fromDir3D (a, b, c) = (fromDir a, fromDir b, fromDir c)
 
 
 fromSongAtom :: Int -> SongAtom -> SongAction
@@ -90,7 +71,6 @@ fromSongEvents events = foldl update [(0, 0, 0, 0)] events
                 x = if ch == 0 then freq else old_x
                 y = if ch == 1 then freq else old_y
                 z = if ch == 2 then freq else old_z
-        alpha = 10
           
 
 fromFreqEvents :: Printer -> [FreqEvent] -> [RelativeMovement]
@@ -118,6 +98,13 @@ fromRelativeMovements printer movements = clean
         gcode = map fromMovement absolutes
         clean = filter (\(LinearMove _ _ _ f) -> not $ isNaN f) gcode -- feio
                 
+
+gCodeFromSong :: Printer -> Song -> GCode
+gCodeFromSong printer song = fromRelativeMovements printer
+                             $ fromFreqEvents printer
+                             $ fromSongEvents
+                             $ songEventsFromSong song
+
 
 fromSteps :: Printer -> Axis -> Int -> MM
 fromSteps (Printer _ _ _ (xmm, ymm, zmm)) = fromSteps'

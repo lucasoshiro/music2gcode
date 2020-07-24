@@ -59,5 +59,5 @@ main = do
   content <- readFile input
   let ls = lines content
   let song = parseSong ls
-  let func = fromRelativeMovements printer' $ fromFreqEvents printer' $ fromSongEvents $ songEventsFromSong song
-  writeFile output $ concat $ map ((++"\n") . show) func
+  let gcode = gCodeFromSong printer' song
+  writeFile output $ concat $ map ((++"\n") . show) gcode
