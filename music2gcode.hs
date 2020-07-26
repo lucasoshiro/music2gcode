@@ -7,6 +7,7 @@ import GCode
 data Options = Options { printer    :: Maybe Printer
                        , inputPath  :: Maybe String
                        , outputPath :: Maybe String
+                       , g28        :: Bool
                        }
 
 
@@ -14,6 +15,7 @@ defaultOpts :: Options
 defaultOpts = Options { printer    = Nothing
                       , inputPath  = Nothing
                       , outputPath = Nothing
+                      , g28        = False
                       }
 
 
@@ -27,6 +29,7 @@ parseOptions' args@(arg:_) opt = parseOptions' rest newOpt
   where (rest, newOpt) = case arg of
           "-p" -> parsePrinter args opt
           "-o" -> (drop 2 args, opt { outputPath = Just $ args !! 1 })
+          "-h" -> (drop 1 args, opt { g28 = True })
           _    -> (drop 1 args, opt { inputPath  = Just $ args !! 0 })
 
 
@@ -48,7 +51,7 @@ parsePrinter (_:args) opt = (rest, newOpt)
 main :: IO ()
 main = do
   args <- getArgs
-  let (Options mPr mIn mOut) = parseOptions args
+  let (Options mPr mIn mOut homing) = parseOptions args
 
   let (printer', input, output) = fromJust $
         do printer'' <- mPr
@@ -59,5 +62,5 @@ main = do
   content <- readFile input
   let ls = lines content
   let song = parseSong ls
-  let gcode = gCodeFromSong printer' song
+  let gcode = gCodeFromSong printer' homing song
   writeFile output $ concat $ map ((++"\n") . show) gcode

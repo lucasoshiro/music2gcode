@@ -20,6 +20,7 @@ data Printer = Printer { rangeX     :: (Float, Float)
 
 data Axis = X | Y | Z
 data GCodeAtom = LinearMove {x :: Float, y :: Float, z :: Float, f :: Float}
+               | Home
 
 type GCode = [GCodeAtom]
 
@@ -27,6 +28,8 @@ type GCode = [GCodeAtom]
 instance Show GCodeAtom where
   show (LinearMove x y z f) = "G0 " ++ intercalate " " [
     k:(show v) | (k, v) <- zip "XYZF" [x, y, z, f]]
+
+  show Home = "G28"
 
 
 instance Show Axis where
@@ -95,27 +98,32 @@ fromFreqEvents printer events = zipWith joinF deltaSs speeds
         joinF (x, y, z) f = (x, y, z, f)
 
 
-fromRelativeMovements :: Printer -> [RelativeMovement] -> GCode
-fromRelativeMovements printer movements = clean
+fromRelativeMovements :: Printer -> Bool -> [RelativeMovement] -> GCode
+fromRelativeMovements printer homing movements = clean
   where Printer (x0, _) (y0, _) (z0, _) _ = printer
 
         absolutes = foldl toAbsolute [(x0, y0, z0, 0)] movements
-        toAbsolute l (dx, dy, dz, s) = l ++ [(x, y, z, s)]
-          where (old_x, old_y, old_z, _) = last l
-                x = if old_x - dx > x0 then old_x - dx else old_x + dx
-                y = if old_y - dy > y0 then old_y - dy else old_y + dy
-                z = if old_z - dz > z0 then old_z - dz else old_z + dz
+          where toAbsolute l (dx, dy, dz, s) = l ++ [(x, y, z, s)]
+                  where (old_x, old_y, old_z, _) = last l
+                        x = if old_x - dx > x0 then old_x - dx else old_x + dx
+                        y = if old_y - dy > y0 then old_y - dy else old_y + dy
+                        z = if old_z - dz > z0 then old_z - dz else old_z + dz
 
-        gcode = map fromMovement absolutes
+        gcode = preamble ++ map fromMovement absolutes
           where fromMovement (x, y, z, f) = LinearMove x y z f
+                home = if homing then [Home] else []
+                begin = [LinearMove x0 y0 z0 1000]
+                preamble = home ++ begin
 
-        clean = filter (\(LinearMove _ _ _ f) -> not $ isNaN f) gcode -- feio
+        clean = filter noNaN gcode -- feio
+          where noNaN (LinearMove _ _ _ f) = not $ isNaN f
+                noNaN _ = True
 
 
-gCodeFromSong :: Printer -> Song -> GCode
-gCodeFromSong printer song = fromRelativeMovements printer
-                             $ fromFreqEvents printer
-                             $ freqEventsFromSong song
+gCodeFromSong :: Printer -> Bool -> Song -> GCode
+gCodeFromSong printer homing song = fromRelativeMovements printer homing
+                                    $ fromFreqEvents printer
+                                    $ freqEventsFromSong song
 
 
 fromSteps :: Printer -> Axis -> Int -> MM
