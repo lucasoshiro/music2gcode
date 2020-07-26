@@ -8,7 +8,6 @@ type MiliSec = Int
 
 type SongAction   = (MiliSec, Hz)                     -- Duration, Frequency
 type ChannelEvent = (MiliSec, MiliSec, Hz)            -- Begin, End, Frequency
-type SongEvent    = (MiliSec, MiliSec, Int, Hz)       -- Begin, End, Channel, Frequency
 type FreqEvent    = (MiliSec, Hz, Hz, Hz)             -- Begin, X freq, Y freq, Z freq
 type PrinterEvent = (MiliSec, MiliSec, Int, Int, Int) -- Begin, End, Steps
 
@@ -55,23 +54,20 @@ fromChannel bpm channel = zip3 times (drop 1 times) freqs
         times  = foldl (\a b -> a ++ [last a + b]) [0] (deltas)
 
 
-songEventsFromSong :: Song -> [SongEvent]
-songEventsFromSong (tempo, channels) = sortBy timeorder $ concat songEvChannels
-  where fromChannel' = fromChannel tempo
-        evCh = map fromChannel' channels
-        fromChEvent i ch = map (\(b, e, f) -> (b, e, i, f)) ch
-        songEvChannels = zipWith fromChEvent [0..] evCh
-        timeorder (a, _, _, _) (b, _, _, _) = compare a b
-
-
-fromSongEvents :: [SongEvent] -> [FreqEvent]
-fromSongEvents events = foldl update [(0, 0, 0, 0)] events
+freqEventsFromSong :: Song -> [FreqEvent]
+freqEventsFromSong (tempo, channels) = foldl update [(0, 0, 0, 0)] events
   where update l e = l ++ [(t, x, y, z)]
           where (_, old_x, old_y, old_z) = last l
                 (t, _, ch, freq) = e
                 x = if ch == 0 then freq else old_x
                 y = if ch == 1 then freq else old_y
                 z = if ch == 2 then freq else old_z
+        events = sortBy timeorder $ concat songEvChannels
+        fromChannel' = fromChannel tempo
+        evCh = map fromChannel' channels
+        fromChEvent i ch = map (\(b, e, f) -> (b, e, i, f)) ch
+        songEvChannels = zipWith fromChEvent [0..] evCh
+        timeorder (a, _, _, _) (b, _, _, _) = compare a b
 
 
 fromFreqEvents :: Printer -> [FreqEvent] -> [RelativeMovement]
@@ -117,8 +113,7 @@ fromRelativeMovements printer movements = clean
 gCodeFromSong :: Printer -> Song -> GCode
 gCodeFromSong printer song = fromRelativeMovements printer
                              $ fromFreqEvents printer
-                             $ fromSongEvents
-                             $ songEventsFromSong song
+                             $ freqEventsFromSong song
 
 
 fromSteps :: Printer -> Axis -> Int -> MM
