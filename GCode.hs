@@ -6,10 +6,10 @@ type MM      = Float
 type MM_s    = Float
 type MiliSec = Int
 
-type SongAction   = (MiliSec, Hz)                     -- Duration, Frequency
-type ChannelEvent = (MiliSec, MiliSec, Hz)            -- Begin, End, Frequency
-type FreqEvent    = (MiliSec, Hz, Hz, Hz)             -- Begin, X freq, Y freq, Z freq
-type PrinterEvent = (MiliSec, MiliSec, Int, Int, Int) -- Begin, End, Steps
+type SongAction       = (MiliSec, Hz)          -- Duration, Frequency
+type ChannelEvent     = (MiliSec, MiliSec, Hz) -- Begin, End, Frequency
+type FreqEvent        = (MiliSec, Hz, Hz, Hz)  -- Begin, X freq, Y freq, Z freq
+type RelativeMovement = (MM, MM, MM, MM_s)     -- X Y Z F
 
 
 data Printer = Printer { rangeX     :: (Float, Float)
@@ -21,7 +21,6 @@ data Printer = Printer { rangeX     :: (Float, Float)
 data Axis = X | Y | Z
 data GCodeAtom = LinearMove {x :: Float, y :: Float, z :: Float, f :: Float}
 
-type RelativeMovement = (MM, MM, MM, MM_s)
 type GCode = [GCodeAtom]
 
 
@@ -62,12 +61,15 @@ freqEventsFromSong (tempo, channels) = foldl update [(0, 0, 0, 0)] events
                 x = if ch == 0 then freq else old_x
                 y = if ch == 1 then freq else old_y
                 z = if ch == 2 then freq else old_z
+
         events = sortBy timeorder $ concat songEvChannels
-        fromChannel' = fromChannel tempo
+          where timeorder (a, _, _, _) (b, _, _, _) = compare a b
+
         evCh = map fromChannel' channels
-        fromChEvent i ch = map (\(b, e, f) -> (b, e, i, f)) ch
+          where fromChannel' = fromChannel tempo
+
         songEvChannels = zipWith fromChEvent [0..] evCh
-        timeorder (a, _, _, _) (b, _, _, _) = compare a b
+          where fromChEvent i ch = map (\(b, e, f) -> (b, e, i, f)) ch
 
 
 fromFreqEvents :: Printer -> [FreqEvent] -> [RelativeMovement]
