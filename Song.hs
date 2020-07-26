@@ -25,12 +25,11 @@ baseExp = 1.0594630943592953
 
 
 fromFigure :: String -> Int
-fromFigure s =
-  let conv = [0, 2, 4, 5, 7, 9, 11]
-      base = conv !! (((ord $ s !! 0) - (ord 'A') + 12) `mod` 7)
-      ac = if (length s) == 1 then 0
-           else if (s !! 1) == '#' then 1 else -1
-  in base + ac
+fromFigure s =  base + ac
+  where conv = [0, 2, 4, 5, 7, 9, 11]
+        base = conv !! (((ord $ s !! 0) - (ord 'A') + 12) `mod` 7)
+        ac = if (length s) == 1 then 0
+             else if (s !! 1) == '#' then 1 else -1
 
 
 period :: Int -> Float -> Sec
@@ -42,21 +41,19 @@ semitones figure octave = octave * 12 + fromFigure figure
 
 
 freq :: SongAtom -> Hz
-freq (Note n) =
-  let (figure, octave, _) = n
-      mult = fromIntegral $ (2 ^ octave :: Int) :: Float
-  in mult * c0 * baseExp ** (fromIntegral $ fromFigure figure)
+freq (Note n) = mult * c0 * baseExp ** (fromIntegral $ fromFigure figure)
+  where (figure, octave, _) = n
+        mult = fromIntegral $ (2 ^ octave :: Int) :: Float
 freq (Silence _) = 0.0
 freq (Noise _) = 0.0
 
 
 parseSongAtom :: String -> SongAtom
-parseSongAtom s =
-  let first:params = words s
-  in case first of
-    "-" -> Silence (read $ params !! 0)
-    "~" -> Noise   (read $ params !! 0, read $ params !! 1)
-    _   -> Note    (first, read $ params !! 0, read $ params !! 1)
+parseSongAtom s = case first of
+  "-" -> Silence (read $ params !! 0)
+  "~" -> Noise   (read $ params !! 0, read $ params !! 1)
+  _   -> Note    (first, read $ params !! 0, read $ params !! 1)
+  where first:params = words s
 
 
 parseChannel :: [String] -> Channel
@@ -75,20 +72,18 @@ preProcessSong = clear . (map $ uncomment . unwspace)
 
 parseSong' :: [String] -> Song
 parseSong' [] = (0, [])
-parseSong' (l:ls) =
-  if "TEMPO" `isPrefixOf` l
-  then (read $ drop 6 l, parseSongChannels ls)
-  else parseSong' ls
+parseSong' (l:ls) = if "TEMPO" `isPrefixOf` l
+                    then (read $ drop 6 l, parseSongChannels ls)
+                    else parseSong' ls
 
 
 parseSongChannels :: [String] -> [Channel]
 parseSongChannels [] = []
 parseSongChannels (l:ls) =
   if "BEGINCH" `isPrefixOf` l
-  then
-    let (rawChannel, etc) = break ("ENDCH" `isPrefixOf`) ls
-    in (parseChannel rawChannel):(parseSongChannels $ drop 1 etc)
+  then (parseChannel rawChannel):(parseSongChannels $ drop 1 etc)
   else []
+  where (rawChannel, etc) = break ("ENDCH" `isPrefixOf`) ls
 
 
 parseSong :: [String] -> Song
