@@ -76,7 +76,7 @@ freqEventsFromSong (tempo, channels) = foldl update [(0, 0, 0, 0)] events
 
 
 fromFreqEvents :: Printer -> [FreqEvent] -> [RelativeMovement]
-fromFreqEvents printer events = zipWith joinF deltaSs speeds
+fromFreqEvents printer events = clean
   where deltaTs = zipWith getDeltaT events $ drop 1 events
           where getDeltaT (t0, _, _, _) (t1, _, _, _) = fromIntegral (t1 - t0) / 1000
 
@@ -95,11 +95,15 @@ fromFreqEvents printer events = zipWith joinF deltaSs speeds
                                                     ds_y ** 2 +
                                                     ds_z ** 2) / dt * 60
 
-        joinF (x, y, z) f = (x, y, z, f)
+        joined = zipWith joinF deltaSs speeds
+          where joinF (x, y, z) f = (x, y, z, f)
+
+        clean = filter hasMovement joined
+          where hasMovement (x, y, z, _) = any (> 0) [x, y, z]
 
 
 fromRelativeMovements :: Printer -> Bool -> [RelativeMovement] -> GCode
-fromRelativeMovements printer homing movements = clean
+fromRelativeMovements printer homing movements = gcode
   where Printer (x0, _) (y0, _) (z0, _) _ = printer
 
         absolutes = foldl toAbsolute [(x0, y0, z0, 0)] movements
@@ -114,11 +118,6 @@ fromRelativeMovements printer homing movements = clean
                 home = if homing then [Home] else []
                 begin = [LinearMove x0 y0 z0 1000]
                 preamble = home ++ begin
-
-        clean = filter noNaN gcode -- feio
-          where noNaN (LinearMove _ _ _ f) = not $ isNaN f
-                noNaN _ = True
-
 
 gCodeFromSong :: Printer -> Bool -> Song -> GCode
 gCodeFromSong printer homing song = fromRelativeMovements printer homing
