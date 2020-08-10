@@ -5,15 +5,15 @@ import Data.List
 
 type Hz = Float
 type Sec = Float
+type Bpm = Int
 
-data SongAtom = Silence Sec | Noise (Int, Sec) | Note (String, Int, Sec)
+data SongAtom = Silence Sec | Note (String, Int, Sec)
 type Channel = [SongAtom]
-type Song    = (Int, [Channel])
+type Song    = (Bpm, [Channel])
 
 
 instance Show SongAtom where
   show (Silence t)      = intercalate " " ["-", show t]
-  show (Noise (o, t))   = intercalate " " ["~", show o, show t]
   show (Note (f, o, t)) = intercalate " " [f,   show o, show t]
 
 
@@ -36,22 +36,16 @@ period :: Int -> Float -> Sec
 period bpm beats = 60 * beats / (fromIntegral bpm)
 
 
-semitones :: String -> Int -> Int
-semitones figure octave = octave * 12 + fromFigure figure
-
-
 freq :: SongAtom -> Hz
+freq (Silence _) = 0.0
 freq (Note n) = mult * c0 * baseExp ** (fromIntegral $ fromFigure figure)
   where (figure, octave, _) = n
-        mult = fromIntegral $ (2 ^ octave :: Int) :: Float
-freq (Silence _) = 0.0
-freq (Noise _) = 0.0
+        mult = fromIntegral $ ((2 :: Int) ^ octave)
 
 
 parseSongAtom :: String -> SongAtom
 parseSongAtom s = case first of
   "-" -> Silence (read $ params !! 0)
-  "~" -> Noise   (read $ params !! 0, read $ params !! 1)
   _   -> Note    (first, read $ params !! 0, read $ params !! 1)
   where first:params = words s
 
