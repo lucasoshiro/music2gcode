@@ -8,6 +8,7 @@ data Options = Options { printer    :: Maybe Printer
                        , inputPath  :: Maybe String
                        , outputPath :: Maybe String
                        , g28        :: Bool
+                       , transpose  :: Int
                        }
 
 
@@ -16,6 +17,7 @@ defaultOpts = Options { printer    = Nothing
                       , inputPath  = Nothing
                       , outputPath = Nothing
                       , g28        = False
+                      , transpose  = 0
                       }
 
 
@@ -30,6 +32,7 @@ parseOptions' args@(arg:_) opt = parseOptions' rest newOpt
           "-p" -> parsePrinter args opt
           "-o" -> (drop 2 args, opt { outputPath = Just $ args !! 1 })
           "-h" -> (drop 1 args, opt { g28 = True })
+          "-t" -> (drop 2 args, opt { transpose = read $ args !! 1})
           _    -> (drop 1 args, opt { inputPath  = Just $ args !! 0 })
 
 
@@ -51,7 +54,7 @@ parsePrinter (_:args) opt = (rest, newOpt)
 main :: IO ()
 main = do
   args <- getArgs
-  let (Options mPr mIn mOut homing) = parseOptions args
+  let (Options mPr mIn mOut homing tr) = parseOptions args
 
   let (printer', input, output) = fromJust $
         do printer'' <- mPr
@@ -62,5 +65,6 @@ main = do
   content <- readFile input
   let ls = lines content
   let song = parseSong ls
-  let gcode = gCodeFromSong printer' homing song
+  let trSong = if tr /= 0 then transposeSong song tr else song
+  let gcode = gCodeFromSong printer' homing trSong
   writeFile output $ concat $ map ((++"\n") . show) gcode

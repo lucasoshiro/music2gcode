@@ -93,3 +93,12 @@ unparseSong (tempo, channels) =
   [ "TEMPO "    ++ show tempo
   , "CHANNELS " ++ (show $ length channels)] ++
   [line | chLines <- map unparseChannel channels, line <- chLines]
+
+
+transposeSong :: Song -> Int -> Song
+transposeSong (b, channels) octaves = (b, trChannels)
+  where trChannels = map transposeCh channels
+        transposeCh ch = map transposeAtom ch
+
+        transposeAtom (Note (s, o, t)) = Note (s, o + octaves, t)
+        transposeAtom a = a
