@@ -2,7 +2,7 @@ import System.Environment
 import Data.Maybe
 
 import Song
-import GCode
+import Converter
 
 data Options = Options { printer    :: Maybe Printer
                        , inputPath  :: Maybe String
