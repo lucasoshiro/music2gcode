@@ -3,6 +3,7 @@ import Data.Maybe
 
 import Song
 import Converter
+import GuitarProTab
 
 data Options = Options { printer    :: Maybe Printer
                        , inputPath  :: Maybe String
@@ -64,7 +65,10 @@ main = do
                 
   content <- readFile input
   let ls = lines content
-  let song = parseSong ls
+  let song =
+        if (drop (length input - 3) input) == "tab"
+        then fromGuitarProTab ls
+        else parseSong ls
   let trSong = if tr /= 0 then transposeSong song tr else song
   let gcode = gCodeFromSong printer' homing trSong
   writeFile output $ concat $ map ((++"\n") . show) gcode
