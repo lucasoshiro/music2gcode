@@ -37,7 +37,7 @@ period bpm beats = 60 * beats / (fromIntegral bpm)
 
 
 freq :: SongAtom -> Hz
-freq (Silence _) = 0.0
+freq (Silence _) = 20
 freq (Note n) = mult * c0 * baseExp ** (fromIntegral $ fromFigure figure)
   where (figure, octave, _) = n
         mult = fromIntegral $ ((2 :: Int) ^ octave)
